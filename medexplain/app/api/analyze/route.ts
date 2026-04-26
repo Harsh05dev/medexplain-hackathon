@@ -21,6 +21,7 @@ type AnalyzeResponse = {
   summary: string;
   totalAmount: string;
   issues: AnalyzeIssue[];
+  fileText: string;
 };
 
 const LANGUAGE_NAMES: Record<LanguageCode, string> = {
@@ -81,6 +82,7 @@ function parseClaudeJson(raw: string): AnalyzeResponse {
       chargeAmount: typeof issue?.chargeAmount === "string" ? issue.chargeAmount : null,
       law: typeof issue?.law === "string" ? issue.law : null,
     })),
+    fileText: "",
   };
 }
 
@@ -244,6 +246,7 @@ export async function POST(request: Request) {
     const fileBuffer = Buffer.from(bytes);
 
     let textResponse = "";
+    let extractedFileText = "";
 
     if (file.type === "application/pdf") {
       const extractedText = await extractPdfText(fileBuffer);
@@ -253,6 +256,7 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+      extractedFileText = extractedText;
 
       if (provider === "gemini") {
         if (isLikelyPlaceholder(geminiApiKey, "YOUR_GEMINI_API_KEY_HERE")) {
@@ -385,6 +389,8 @@ export async function POST(request: Request) {
     }
 
     const parsed = parseClaudeJson(textResponse);
+    const fileText = extractedFileText || `Image-based bill context:\n${textResponse}`;
+    parsed.fileText = fileText;
     return NextResponse.json(parsed);
   } catch (error) {
     const message =

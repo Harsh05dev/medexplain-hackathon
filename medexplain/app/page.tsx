@@ -38,6 +38,12 @@ type AnalyzeResult = {
   summary: string;
   totalAmount: string;
   issues: AnalyzeIssue[];
+  fileText: string;
+};
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
 };
 
 const ALLOWED_TYPES = [
@@ -54,6 +60,24 @@ const LANGUAGE_LABELS: Record<Language, string> = {
   hi: "हिन्दी",
 };
 
+const SUGGESTED_PROMPTS: Record<Language, string[]> = {
+  en: [
+    "Why is this charge so high?",
+    "Can I negotiate this bill?",
+    "What does this CPT code mean?",
+  ],
+  es: [
+    "¿Por qué es tan alto este cargo?",
+    "¿Puedo negociar esta factura?",
+    "¿Qué significa este código CPT?",
+  ],
+  hi: [
+    "यह शुल्क इतना ज़्यादा क्यों है?",
+    "क्या मैं इस बिल पर बातचीत कर सकता हूं?",
+    "इस CPT कोड का क्या मतलब है?",
+  ],
+};
+
 export default function Home() {
   const [language, setLanguage] = useState<Language>("en");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -61,6 +85,10 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalyzeResult | null>(null);
   const [analysisError, setAnalysisError] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isAsking, setIsAsking] = useState(false);
+  const [chatError, setChatError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -71,6 +99,10 @@ export default function Home() {
       setErrorMessage("");
       setAnalysisError("");
       setAnalysisResult(null);
+      setChatMessages([]);
+      setChatInput("");
+      setIsAsking(false);
+      setChatError("");
       return;
     }
 
@@ -80,6 +112,10 @@ export default function Home() {
       event.target.value = "";
       setAnalysisResult(null);
       setAnalysisError("");
+      setChatMessages([]);
+      setChatInput("");
+      setIsAsking(false);
+      setChatError("");
       return;
     }
 
@@ -87,6 +123,10 @@ export default function Home() {
     setErrorMessage("");
     setAnalysisResult(null);
     setAnalysisError("");
+    setChatMessages([]);
+    setChatInput("");
+    setIsAsking(false);
+    setChatError("");
   };
 
   const onUploadClick = async () => {
@@ -99,6 +139,10 @@ export default function Home() {
       setIsSubmitting(true);
       setAnalysisError("");
       setAnalysisResult(null);
+      setChatMessages([]);
+      setChatInput("");
+      setIsAsking(false);
+      setChatError("");
 
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -120,7 +164,8 @@ export default function Home() {
       if (
         typeof payload.summary !== "string" ||
         typeof payload.totalAmount !== "string" ||
-        !Array.isArray(payload.issues)
+        !Array.isArray(payload.issues) ||
+        typeof payload.fileText !== "string"
       ) {
         throw new Error("Invalid analysis response. Please try again.");
       }
@@ -129,6 +174,7 @@ export default function Home() {
         summary: payload.summary,
         totalAmount: payload.totalAmount,
         issues: payload.issues as AnalyzeIssue[],
+        fileText: payload.fileText,
       });
     } catch (error) {
       setAnalysisError(
@@ -144,9 +190,54 @@ export default function Home() {
     setErrorMessage("");
     setAnalysisError("");
     setAnalysisResult(null);
+    setChatMessages([]);
+    setChatInput("");
+    setIsAsking(false);
+    setChatError("");
     setIsSubmitting(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const askQuestion = async (questionInput?: string) => {
+    const question = (questionInput ?? chatInput).trim();
+    if (!analysisResult?.fileText) {
+      setChatError("Missing bill context. Please analyze the bill again.");
+      return;
+    }
+    if (!question || isAsking) {
+      return;
+    }
+
+    setChatError("");
+    setChatInput("");
+    setIsAsking(true);
+    setChatMessages((prev) => [...prev, { role: "user", content: question }]);
+
+    try {
+      const response = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileText: analysisResult.fileText,
+          question,
+          language,
+        }),
+      });
+
+      const payload = (await response.json()) as { answer?: string; error?: string };
+      if (!response.ok || typeof payload.answer !== "string") {
+        throw new Error(payload.error || "Failed to get an answer. Please try again.");
+      }
+
+      setChatMessages((prev) => [...prev, { role: "assistant", content: payload.answer! }]);
+    } catch (error) {
+      setChatError(
+        error instanceof Error ? error.message : "Failed to get an answer. Please try again."
+      );
+    } finally {
+      setIsAsking(false);
     }
   };
 
@@ -367,6 +458,99 @@ export default function Home() {
             <Button variant="outline" onClick={resetState}>
               Try another bill
             </Button>
+
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Ask MedExplain about this bill</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {SUGGESTED_PROMPTS[language].map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => {
+                        setChatInput(prompt);
+                        void askQuestion(prompt);
+                      }}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="max-h-80 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  {chatMessages.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      Ask a follow-up question about charges, CPT codes, or your rights.
+                    </p>
+                  ) : null}
+
+                  {chatMessages.map((message, index) => (
+                    <div
+                      key={`${message.role}-${index}`}
+                      className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
+                          message.role === "user"
+                            ? "bg-sky-100 text-slate-900"
+                            : "bg-slate-50 text-slate-800"
+                        }`}
+                      >
+                        {message.role === "assistant" ? (
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            MedExplain
+                          </p>
+                        ) : null}
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      </div>
+                    </div>
+                  ))}
+
+                  {isAsking ? (
+                    <div className="flex justify-start">
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          MedExplain
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.2s]" />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.1s]" />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                {chatError ? <p className="text-sm font-medium text-red-600">{chatError}</p> : null}
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void askQuestion();
+                      }
+                    }}
+                    placeholder="Ask a question about this bill..."
+                    disabled={isAsking}
+                    className="h-11 rounded-xl"
+                  />
+                  <Button
+                    onClick={() => void askQuestion()}
+                    disabled={isAsking || !chatInput.trim()}
+                    className="h-11 rounded-xl"
+                  >
+                    Send
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </section>
         ) : null}
       </section>
