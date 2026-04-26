@@ -1089,6 +1089,44 @@ export default function Home() {
                 </div>
               ) : null}
 
+              {isAsking && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
+                  <div
+                    style={{
+                      width: 28, height: 28, borderRadius: 8, flexShrink: 0, marginTop: 2,
+                      background: "linear-gradient(135deg, #2563eb, #4f46e5)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "white", fontWeight: 800, fontSize: 12,
+                    }}
+                  >
+                    M
+                  </div>
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      background: "var(--app-surface)",
+                      border: "1px solid rgba(0,0,0,0.06)",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                      borderRadius: "14px 14px 14px 4px",
+                      display: "flex", alignItems: "center", gap: 4,
+                    }}
+                  >
+                    <style>{`
+                      @keyframes typingBounce {
+                        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+                        30% { transform: translateY(-5px); opacity: 1; }
+                      }
+                      .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: #6366f1; animation: typingBounce 1.2s infinite; }
+                      .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+                      .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+                    `}</style>
+                    <div className="typing-dot" />
+                    <div className="typing-dot" />
+                    <div className="typing-dot" />
+                  </div>
+                </div>
+              )}
+
               {chatError ? <p style={{ color: "#dc2626", marginBottom: 10 }}>{chatError}</p> : null}
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

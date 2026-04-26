@@ -32,7 +32,7 @@ const LANGUAGE_NAMES: Record<LanguageCode, string> = {
 
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
 const GEMINI_MODEL = "gemini-2.5-flash";
-const CLAUDE_MODEL = "claude-sonnet-4-5";
+const CLAUDE_MODEL = "claude-sonnet-4-6";
 
 const SYSTEM_PROMPT_TEMPLATE = `You are MedExplain, a patient billing advocate. Analyze this US hospital bill and respond ONLY in valid JSON with this exact shape:
 {

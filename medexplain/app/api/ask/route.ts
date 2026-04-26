@@ -25,7 +25,7 @@ BILL CONTEXT:
 
 const REQUIRED_ENDING = "Verify with a healthcare advocate. This is not legal advice.";
 const GEMINI_MODEL = "gemini-2.5-flash";
-const CLAUDE_MODEL = "claude-sonnet-4-5";
+const CLAUDE_MODEL = "claude-sonnet-4-6";
 
 function hasInvalidBytes(input: string): boolean {
   return [...input].some((char) => char.charCodeAt(0) > 255);
