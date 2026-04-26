@@ -12,7 +12,7 @@ const LANGUAGE_NAMES: Record<LanguageCode, string> = {
 };
 
 const CLAUDE_MODEL = "claude-sonnet-4-6";
-const MAX_TOKENS = 1500;
+const MAX_TOKENS = 4000;
 const MAX_FILE_TEXT_CHARS = 4000;
 
 const SYSTEM_PROMPT_TEMPLATE = `You are MedExplain, a patient billing advocate. Write a professional
