@@ -160,7 +160,8 @@ export async function POST(request: Request) {
       | undefined;
 
     if (!toolBlock?.input?.englishLetter || !toolBlock?.input?.translatedLetter) {
-      return NextResponse.json({ error: "No letter returned. Please try again." }, { status: 500 });
+      const debug = JSON.stringify({ stop_reason: response.stop_reason, content: response.content });
+      return NextResponse.json({ error: `No letter returned. Debug: ${debug}` }, { status: 500 });
     }
 
     return NextResponse.json({
