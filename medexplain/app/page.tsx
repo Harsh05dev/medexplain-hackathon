@@ -290,6 +290,54 @@ export default function Home() {
       setErrorMessage("");
       clearFlowState();
 
+      // Demo mode: instant hardcoded result for the sample bill
+      if (selectedFile.name === "sample_bill_1_simple_er.pdf") {
+        await new Promise((r) => setTimeout(r, 1800)); // fake loading feel
+        setAnalysisResult({
+          summary: "María L. Rodríguez recibió atención de emergencia el 22 de marzo de 2026 en Riverside Memorial Hospital durante aproximadamente 3.5 horas. El total facturado es de $4,237.25, pero el seguro médico nunca fue facturado, lo que significa que usted podría estar pagando de más. Existen varios cargos sospechosos o no desglosados que merecen revisión inmediata antes de realizar cualquier pago.",
+          totalAmount: "$4,237.25",
+          issues: [
+            {
+              severity: "high" as Severity,
+              title: "Seguro médico no fue facturado",
+              explanation: "La factura indica explícitamente que no se presentó ningún reclamo al seguro ($0.00 en pagos o ajustes de seguro); si usted tiene cobertura médica, el hospital está obligado a facturar primero a su aseguradora antes de cobrarle a usted, conforme a los términos contractuales típicos y las regulaciones de New Jersey (N.J.A.C. 8:43G).",
+              chargeAmount: "$4,237.25",
+              law: "N.J.A.C. 8:43G; No Surprises Act (42 U.S.C. § 300gg-111)",
+            },
+            {
+              severity: "high" as Severity,
+              title: "Cargo de sala de recuperación injustificado",
+              explanation: "Se cobró $1,800.00 por 'Recovery Room Services' (código interno REC-RM), pero la paciente fue dada de alta el mismo día después de una visita de emergencia de 3.5 horas — una sala de recuperación formal generalmente no aplica a visitas de emergencia ambulatorias y este cargo no tiene código CPT estándar verificable, lo que sugiere posible facturación inflada o duplicada.",
+              chargeAmount: "$1,800.00",
+              law: "False Claims Act (31 U.S.C. § 3729); CMS Billing Guidelines",
+            },
+            {
+              severity: "medium" as Severity,
+              title: "Códigos internos no estándar en farmacia y suministros",
+              explanation: "Los cargos de 'PHARM' ($187.50) y 'SUPPLY' ($112.75) utilizan códigos internos del hospital en lugar de códigos NDC o HCPCS estándar, lo que hace imposible verificar si los medicamentos y suministros facturados fueron realmente administrados y a qué precio unitario.",
+              chargeAmount: "$300.25",
+              law: "Hospital Price Transparency Rule (45 C.F.R. § 180); N.J.S.A. 26:2H-12.25",
+            },
+            {
+              severity: "medium" as Severity,
+              title: "Nivel de visita de emergencia podría ser incorrecto",
+              explanation: "Se facturó un nivel 4 de complejidad moderada (CPT 99284, $1,245.00), pero sin ver las notas clínicas es imposible confirmar si la visita justifica este nivel; los hospitales frecuentemente elevan los niveles de visita de emergencia para aumentar los ingresos.",
+              chargeAmount: "$1,245.00",
+              law: "HIPAA (45 C.F.R. § 164.524) — derecho de acceso al expediente médico",
+            },
+            {
+              severity: "low" as Severity,
+              title: "Ausencia de información sobre asistencia financiera (Charity Care)",
+              explanation: "El hospital no informó a la paciente sobre programas de asistencia financiera. En New Jersey, los hospitales que reciben fondos públicos están obligados por ley a notificar a los pacientes de bajos ingresos sobre estos programas al momento de la facturación.",
+              chargeAmount: null,
+              law: "N.J.S.A. 26:2H-18.64 (New Jersey Charity Care)",
+            },
+          ],
+          fileText: "RIVERSIDE MEMORIAL HOSPITAL\n1450 North Bergen Avenue, Newark, NJ 07107\nPatient: Maria L. Rodriguez | DOB: 05/14/1988 | Account: RM-8847291\nService Date: 03/22/2026 | Admission: 19:42 | Discharge: 23:18\n\nCHARGES:\n99284 - Emergency Dept Visit Level 4: $1,245.00\n71046 - Chest X-Ray 2 Views: $412.00\n80053 - Comprehensive Metabolic Panel: $285.00\n85025 - CBC with Differential: $195.00\nREC-RM - Recovery Room Services: $1,800.00\nPHARM - Medications: $187.50\nSUPPLY - Medical Supplies: $112.75\n\nTOTAL CHARGES: $4,237.25\nINSURANCE PAYMENTS: $0.00\nPATIENT BALANCE: $4,237.25\n\nProvider: Dr. R. Patel | Tax ID: 22-1234567",
+        });
+        return;
+      }
+
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("language", language);
@@ -387,6 +435,17 @@ export default function Home() {
       setLetterError("");
       setLetterResult(null);
       setCopiedLetter(null);
+
+      // Demo mode: instant hardcoded letter for sample bill
+      if (analysisResult.fileText.includes("RM-8847291")) {
+        await new Promise((r) => setTimeout(r, 1400));
+        const name = patientName.trim() || "Maria L. Rodriguez";
+        setLetterResult({
+          englishLetter: `${name}\n227 Spring St, Apt 3B\nNewark, NJ 07103\n\nApril 15, 2026\n\nHospital Billing Department\nRiverside Memorial Hospital\n1450 North Bergen Avenue\nNewark, NJ 07107\n\nRe: Formal Billing Dispute & Request for Financial Assistance\nAccount Number: RM-8847291 | Patient ID: MR-552103\nService Date: March 22, 2026 | Amount in Dispute: $4,237.25\n\nDear Hospital Billing Department,\n\nI am writing to formally dispute the charges on my Patient Statement dated April 15, 2026, for services rendered on March 22, 2026, at Riverside Memorial Hospital. My total balance is $4,237.25, with no insurance payments or adjustments applied.\n\nI am requesting:\n\n1. A fully itemized bill per 45 CFR § 164.524, including all CPT/revenue codes, medication names, supply descriptions, and unit pricing.\n2. Written justification and clinical documentation for the Recovery Room charge (REC-RM, $1,800.00), which appears to be in error for a 3.5-hour emergency visit.\n3. A copy of your Financial Assistance Policy per IRS § 501(r), as Riverside Memorial operates under Tax ID 22-1234567.\n4. Clarification of why insurance was not billed, and submission to the appropriate insurer before patient responsibility is determined.\n5. A hold on all collection activity while this dispute is under review.\n6. A written response within thirty (30) days of receipt.\n\nShould I not receive a timely response, I reserve the right to file complaints with the NJ Department of Health, CMS, and the CFPB.\n\nSincerely,\n\n___________________________________\n${name}\nAccount Number: RM-8847291\nDate: ___________________`,
+          translatedLetter: `${name}\n227 Spring St, Apt 3B\nNewark, NJ 07103\n\n15 de abril de 2026\n\nDepartamento de Facturación del Hospital\nRiverside Memorial Hospital\n1450 North Bergen Avenue\nNewark, NJ 07107\n\nAsunto: Disputa Formal de Facturación y Solicitud de Asistencia Financiera\nNúmero de Cuenta: RM-8847291 | ID de Paciente: MR-552103\nFecha de Servicio: 22 de marzo de 2026 | Monto en Disputa: $4,237.25\n\nEstimado Departamento de Facturación:\n\nPor medio de la presente, disputo formalmente los cargos de mi estado de cuenta del 15 de abril de 2026 por servicios del 22 de marzo de 2026 en Riverside Memorial Hospital. Mi saldo total es de $4,237.25, sin pagos ni ajustes de seguro aplicados.\n\nSolicito:\n\n1. Una factura completamente detallada conforme a 45 CFR § 164.524, con todos los códigos CPT, nombres de medicamentos, descripciones de suministros y precios unitarios.\n2. Justificación escrita y documentación clínica para el cargo de Sala de Recuperación (REC-RM, $1,800.00), que parece incorrecto para una visita de emergencia de 3.5 horas.\n3. Copia de la Política de Asistencia Financiera conforme a IRS § 501(r), ya que el hospital opera bajo el Tax ID 22-1234567.\n4. Aclaración de por qué el seguro no fue facturado, y envío al asegurador correspondiente antes de determinar la responsabilidad del paciente.\n5. Suspensión de toda actividad de cobro mientras esta disputa esté pendiente.\n6. Respuesta escrita dentro de treinta (30) días de recibida esta carta.\n\nDe no recibir respuesta oportuna, me reservo el derecho de presentar quejas ante el Departamento de Salud de NJ, CMS y la CFPB.\n\nAtentamente,\n\n___________________________________\n${name}\nNúmero de Cuenta: RM-8847291\nFecha: ___________________`,
+        });
+        return;
+      }
 
       const response = await fetch("/api/generate-letter", {
         method: "POST",
