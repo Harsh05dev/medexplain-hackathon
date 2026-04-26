@@ -114,6 +114,46 @@ function getProvider(): Provider {
   return "gemini";
 }
 
+function isRateLimitOrQuotaError(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    text.includes("quota exceeded") ||
+    text.includes("rate limit") ||
+    text.includes("resource_exhausted") ||
+    text.includes("too many requests") ||
+    text.includes("free_tier_requests")
+  );
+}
+
+function isAuthError(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    text.includes("authentication") ||
+    text.includes("invalid x-api-key") ||
+    text.includes("api key not valid")
+  );
+}
+
+function extractRetrySeconds(message: string): number | null {
+  const match = message.match(/retry in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+  if (!match) return null;
+  const seconds = Number(match[1]);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return Math.ceil(seconds);
+}
+
+function friendlyLimitMessage(provider: Provider, rawMessage: string): string {
+  const retrySeconds = extractRetrySeconds(rawMessage);
+  const providerName = provider === "gemini" ? "Gemini" : "Claude";
+  const retryPart = retrySeconds ? ` Please retry in about ${retrySeconds}s.` : " Please retry shortly.";
+  return `${providerName} is temporarily rate-limited or over quota.${retryPart} If this keeps happening, switch provider or upgrade your API plan.`;
+}
+
+function friendlyAuthMessage(provider: Provider): string {
+  const keyName = provider === "gemini" ? "GEMINI_API_KEY" : "ANTHROPIC_API_KEY";
+  return `Authentication failed. Check ${keyName} in .env.local and restart the server.`;
+}
+
 function hasInvalidBytes(input: string): boolean {
   return [...input].some((char) => char.charCodeAt(0) > 255);
 }
@@ -395,6 +435,13 @@ export async function POST(request: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to analyze this bill. Please try again.";
+    const provider = getProvider();
+    if (isAuthError(message)) {
+      return NextResponse.json({ error: friendlyAuthMessage(provider) }, { status: 401 });
+    }
+    if (isRateLimitOrQuotaError(message)) {
+      return NextResponse.json({ error: friendlyLimitMessage(provider, message) }, { status: 429 });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
