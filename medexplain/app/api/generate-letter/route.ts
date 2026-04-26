@@ -30,7 +30,7 @@ The letter MUST:
 - Tone: firm, professional, informed - not angry
 - End with space for patient signature
 
-Return ONLY valid JSON with this exact shape:
+Return ONLY raw valid JSON — no markdown, no code fences, no explanation. Just the JSON object:
 {
   "englishLetter": "full letter in English",
   "translatedLetter": "full letter in {LANGUAGE} (if language is en, repeat the English letter here)"
