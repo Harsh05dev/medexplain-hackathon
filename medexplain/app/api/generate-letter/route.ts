@@ -30,19 +30,11 @@ The letter MUST:
 - Tone: firm, professional, informed - not angry
 - End with space for patient signature
 
-Return ONLY raw valid JSON — no markdown, no code fences, no explanation. Just the JSON object:
-{
-  "englishLetter": "full letter in English",
-  "translatedLetter": "full letter in {LANGUAGE} (if language is en, repeat the English letter here)"
-}
+Use the generate_letter tool to return both letters.
 
-CRITICAL: The "translatedLetter" field MUST be written ENTIRELY in
-{LANGUAGE} language. Every single word must be translated.
-If language is "hi" (Hindi), write the COMPLETE letter in Hindi using
-Devanagari script only. If "es" (Spanish), write entirely in Spanish.
-If "en", repeat the English letter.
-DO NOT mix languages. DO NOT leave any English in translatedLetter
-when the target language is not English.
+The "translatedLetter" MUST be written ENTIRELY in {LANGUAGE}.
+If "hi" (Hindi): Devanagari script only. If "es": Spanish only. If "en": repeat English letter.
+DO NOT mix languages.
 
 BILL CONTEXT: {fileText}`;
 
@@ -145,22 +137,36 @@ export async function POST(request: Request) {
       model: CLAUDE_MODEL,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
+      tools: [
+        {
+          name: "generate_letter",
+          description: "Generate the English and translated appeal letters.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              englishLetter: { type: "string", description: "Full appeal letter in English" },
+              translatedLetter: { type: "string", description: "Full appeal letter in the target language" },
+            },
+            required: ["englishLetter", "translatedLetter"],
+          },
+        },
+      ],
+      tool_choice: { type: "tool" as const, name: "generate_letter" },
       messages: [{ role: "user", content: "Generate the letter now." }],
     });
 
-    const rawText =
-      response.content
-        .filter((b) => b.type === "text")
-        .map((b) => (b as { type: "text"; text: string }).text)
-        .join("\n")
-        .trim();
+    const toolBlock = response.content.find((b) => b.type === "tool_use") as
+      | { type: "tool_use"; input: { englishLetter?: string; translatedLetter?: string } }
+      | undefined;
 
-    if (!rawText) {
+    if (!toolBlock?.input?.englishLetter || !toolBlock?.input?.translatedLetter) {
       return NextResponse.json({ error: "No letter returned. Please try again." }, { status: 500 });
     }
 
-    const parsed = parseLetterResponse(rawText);
-    return NextResponse.json(parsed);
+    return NextResponse.json({
+      englishLetter: toolBlock.input.englishLetter.trim(),
+      translatedLetter: toolBlock.input.translatedLetter.trim(),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to generate letter. Please try again.";
