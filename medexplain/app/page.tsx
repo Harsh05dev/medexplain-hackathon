@@ -133,7 +133,12 @@ const LANGUAGE_OPTIONS: Array<{ value: Language; label: string }> = [
   { value: "hi", label: "हिन्दी" },
 ];
 
-const loadingMessages = ["Reading your bill...", "Identifying issues...", "Preparing your report..."];
+const loadingMessages = [
+  "Reading your bill...",
+  "Identifying issues...",
+  "Checking patient rights laws...",
+  "Preparing your report...",
+];
 const HEADER_HEIGHT = 72;
 
 const buttonStyle = {
@@ -186,6 +191,28 @@ export default function Home() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scrolled, setScrolled] = useState(false);
+
+  const handleDemoClick = async () => {
+    const { DEMO_ANALYSIS, DEMO_FILE_NAME } = await import("@/lib/demoData");
+    clearFlowState();
+    setErrorMessage("");
+    setIsSubmitting(true);
+    setProgressIndex(0);
+    // Fake a file so the upload card shows the filename
+    const fakeFile = new File(["demo"], DEMO_FILE_NAME, { type: "application/pdf" });
+    setSelectedFile(fakeFile);
+    await new Promise((r) => setTimeout(r, 1800));
+    setAnalysisResult({
+      summary: DEMO_ANALYSIS.summary,
+      totalAmount: DEMO_ANALYSIS.totalAmount,
+      issues: DEMO_ANALYSIS.issues as AnalyzeIssue[],
+      fileText: DEMO_ANALYSIS.fileText,
+    });
+    setIsSubmitting(false);
+    setTimeout(() => {
+      document.getElementById("analysis-results")?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);
@@ -734,6 +761,99 @@ export default function Home() {
           </div>
         </div>
 
+        {/* DEMO SECTION */}
+        {!analysisResult && (
+          <div
+            style={{
+              background: "linear-gradient(135deg, rgba(37,99,235,0.06), rgba(99,102,241,0.08))",
+              border: "2px solid rgba(37,99,235,0.2)",
+              borderRadius: 20,
+              padding: 32,
+              marginBottom: 24,
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute", top: 16, right: 16,
+                background: "linear-gradient(135deg, #2563eb, #4f46e5)",
+                color: "white", padding: "4px 14px", borderRadius: 100,
+                fontSize: 12, fontWeight: 700, letterSpacing: "0.05em",
+              }}
+            >
+              ✨ LIVE DEMO
+            </div>
+            <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 6, color: "#1e3a8a", marginTop: 0 }}>
+              Try it instantly — no upload needed
+            </h3>
+            <p style={{ color: "#475569", fontSize: 14, marginBottom: 24, lineHeight: 1.6, margin: "0 0 24px" }}>
+              See MedExplain in action with a real sample hospital bill. Maria got this $4,237 ER bill and didn&apos;t understand it. Click below to see what MedExplain found.
+            </p>
+            <div
+              style={{
+                background: "white", borderRadius: 14, padding: 20,
+                border: "1px solid #e2e8f0", marginBottom: 20,
+                position: "relative", overflow: "hidden",
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, fontFamily: "Cabinet Grotesk, sans-serif", color: "#0f172a" }}>
+                📄 sample_bill_1_simple_er.pdf
+              </div>
+              <div style={{ color: "#64748b", fontSize: 12, marginBottom: 12, fontFamily: "Cabinet Grotesk, sans-serif" }}>
+                Riverside Memorial Hospital &nbsp;•&nbsp; March 22, 2026 &nbsp;•&nbsp; Patient: Maria L. Rodriguez
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {[
+                  { desc: "ED Visit Level 4", amount: "$1,245.00" },
+                  { desc: "Recovery Room Services", amount: "$1,800.00" },
+                  { desc: "Chest X-Ray", amount: "$412.00" },
+                  { desc: "Metabolic Panel", amount: "$285.00" },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: "#f8fafc", borderRadius: 8, fontSize: 12 }}>
+                    <span style={{ color: "#475569" }}>{item.desc}</span>
+                    <span style={{ fontWeight: 700, color: "#0f172a" }}>{item.amount}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, background: "linear-gradient(transparent, white)" }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, color: "#64748b", marginBottom: 2 }}>Total billed</div>
+                <div style={{ fontSize: 28, fontWeight: 800, color: "#DC2626" }}>$4,237.25</div>
+                <div style={{ fontSize: 12, color: "#ef4444", marginTop: 2 }}>⚠️ Insurance never billed</div>
+              </div>
+              <button
+                onClick={() => void handleDemoClick()}
+                style={{
+                  padding: "14px 32px", borderRadius: 14, border: "none",
+                  background: "linear-gradient(135deg, #2563eb, #4f46e5)",
+                  color: "white", fontWeight: 700, fontSize: 16, cursor: "pointer",
+                  boxShadow: "0 4px 20px rgba(37,99,235,0.35)",
+                  fontFamily: "Cabinet Grotesk, sans-serif",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
+              >
+                Analyze This Bill →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Divider */}
+        {!analysisResult && (
+          <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "0 0 24px" }}>
+            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+            <span style={{ color: "#94a3b8", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}>
+              or upload your own bill
+            </span>
+            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+          </div>
+        )}
+
         <div className="glass-card" style={{ padding: 32, marginBottom: 24 }}>
           <h2 style={{ ...cardTitleStyle, fontSize: 22, marginBottom: 4 }}>
             Start with your bill
@@ -921,7 +1041,7 @@ export default function Home() {
         ) : null}
 
         {analysisResult ? (
-          <>
+          <div id="analysis-results">
             <div
               style={{
                 background: "rgba(16,185,129,0.1)",
@@ -1437,7 +1557,7 @@ export default function Home() {
                 </p>
               </>
             ) : null}
-          </>
+          </div>
         ) : null}
 
         {analysisResult ? (
