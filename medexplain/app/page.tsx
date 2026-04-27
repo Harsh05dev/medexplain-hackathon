@@ -23,6 +23,18 @@ import {
   Users,
 } from "lucide-react";
 import { GridPattern } from "@/components/ui/grid-pattern";
+import { DEMO_FILE_NAME } from "@/lib/demoData";
+
+const API_BLOCKED_QUOTES = [
+  "💸 APIs aren't free — unlike the advice in this demo. Scroll up and try the live bill ↑",
+  "☁️ The cloud is just someone else's computer, and they charge per call. Our demo is on us though! ↑",
+  "🤑 Plot twist: even MedExplain has bills to pay. Use the free demo above instead ↑",
+  "🚨 Every token costs money. Your hospital charged $1,800 for a nap room — we draw the line at API calls. Try the demo ↑",
+  "🏥 Fun fact: this API call would cost more than the aspirin on your hospital bill. Use the demo ↑",
+];
+
+const randomBlockedQuote = () =>
+  API_BLOCKED_QUOTES[Math.floor(Math.random() * API_BLOCKED_QUOTES.length)];
 
 type Language = "en" | "es" | "hi";
 type Severity = "high" | "medium" | "low";
@@ -191,9 +203,10 @@ export default function Home() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   const handleDemoClick = async () => {
-    const { DEMO_ANALYSIS, DEMO_FILE_NAME } = await import("@/lib/demoData");
+    const { DEMO_ANALYSIS } = await import("@/lib/demoData");
     clearFlowState();
     setErrorMessage("");
     setIsSubmitting(true);
@@ -208,6 +221,7 @@ export default function Home() {
       issues: DEMO_ANALYSIS.issues as AnalyzeIssue[],
       fileText: DEMO_ANALYSIS.fileText,
     });
+    setIsDemoMode(true);
     setIsSubmitting(false);
     setTimeout(() => {
       document.getElementById("analysis-results")?.scrollIntoView({ behavior: "smooth" });
@@ -242,6 +256,7 @@ export default function Home() {
   const clearFlowState = () => {
     setAnalysisError("");
     setAnalysisResult(null);
+    setIsDemoMode(false);
     setChatMessages([]);
     setChatInput("");
     setIsAsking(false);
@@ -311,6 +326,12 @@ export default function Home() {
       return;
     }
 
+    // Block all real uploads — demo only
+    if (selectedFile.name !== DEMO_FILE_NAME) {
+      setErrorMessage(randomBlockedQuote());
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setProgressIndex(0);
@@ -318,7 +339,7 @@ export default function Home() {
       clearFlowState();
 
       // Demo mode: instant hardcoded result for the sample bill
-      if (selectedFile.name === "sample_bill_1_simple_er.pdf") {
+      if (selectedFile.name === DEMO_FILE_NAME) {
         await new Promise((r) => setTimeout(r, 1800)); // fake loading feel
         setAnalysisResult({
           summary: "María L. Rodríguez recibió atención de emergencia el 22 de marzo de 2026 en Riverside Memorial Hospital durante aproximadamente 3.5 horas. El total facturado es de $4,237.25, pero el seguro médico nunca fue facturado, lo que significa que usted podría estar pagando de más. Existen varios cargos sospechosos o no desglosados que merecen revisión inmediata antes de realizar cualquier pago.",
@@ -362,39 +383,9 @@ export default function Home() {
           ],
           fileText: "RIVERSIDE MEMORIAL HOSPITAL\n1450 North Bergen Avenue, Newark, NJ 07107\nPatient: Maria L. Rodriguez | DOB: 05/14/1988 | Account: RM-8847291\nService Date: 03/22/2026 | Admission: 19:42 | Discharge: 23:18\n\nCHARGES:\n99284 - Emergency Dept Visit Level 4: $1,245.00\n71046 - Chest X-Ray 2 Views: $412.00\n80053 - Comprehensive Metabolic Panel: $285.00\n85025 - CBC with Differential: $195.00\nREC-RM - Recovery Room Services: $1,800.00\nPHARM - Medications: $187.50\nSUPPLY - Medical Supplies: $112.75\n\nTOTAL CHARGES: $4,237.25\nINSURANCE PAYMENTS: $0.00\nPATIENT BALANCE: $4,237.25\n\nProvider: Dr. R. Patel | Tax ID: 22-1234567",
         });
+        setIsDemoMode(true);
         return;
       }
-
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("language", language);
-
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        body: formData,
-      });
-
-      const payload = (await response.json()) as Partial<AnalyzeResult> & { error?: string };
-
-      if (!response.ok) {
-        throw new Error(payload.error || "Failed to analyze this bill. Please try again.");
-      }
-
-      if (
-        typeof payload.summary !== "string" ||
-        typeof payload.totalAmount !== "string" ||
-        !Array.isArray(payload.issues) ||
-        typeof payload.fileText !== "string"
-      ) {
-        throw new Error("Invalid analysis response. Please try again.");
-      }
-
-      setAnalysisResult({
-        summary: payload.summary,
-        totalAmount: payload.totalAmount,
-        issues: payload.issues as AnalyzeIssue[],
-        fileText: payload.fileText,
-      });
     } catch (error) {
       setAnalysisError(
         error instanceof Error ? error.message : "Failed to analyze this bill. Please try again."
@@ -415,34 +406,12 @@ export default function Home() {
 
     setChatError("");
     setChatInput("");
-    setIsAsking(true);
     setChatMessages((prev) => [...prev, { role: "user", content: question }]);
-
-    try {
-      const response = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileText: analysisResult.fileText,
-          question,
-          language,
-        }),
-      });
-
-      const payload = (await response.json()) as { answer?: string; error?: string };
-      if (!response.ok || typeof payload.answer !== "string") {
-        throw new Error(payload.error || "Failed to get an answer. Please try again.");
-      }
-
-      const answer = payload.answer;
-      setChatMessages((prev) => [...prev, { role: "assistant", content: answer }]);
-    } catch (error) {
-      setChatError(
-        error instanceof Error ? error.message : "Failed to get an answer. Please try again."
-      );
-    } finally {
-      setIsAsking(false);
-    }
+    setIsAsking(true);
+    // Small delay so the typing indicator shows briefly
+    await new Promise((r) => setTimeout(r, 900));
+    setChatMessages((prev) => [...prev, { role: "assistant", content: randomBlockedQuote() }]);
+    setIsAsking(false);
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
@@ -463,41 +432,19 @@ export default function Home() {
       setLetterResult(null);
       setCopiedLetter(null);
 
-      // Demo mode: instant hardcoded letter for sample bill
-      if (analysisResult.fileText.includes("RM-8847291")) {
+      if (isDemoMode) {
         await new Promise((r) => setTimeout(r, 1400));
+        const { DEMO_LETTER } = await import("@/lib/demoData");
         const name = patientName.trim() || "Maria L. Rodriguez";
         setLetterResult({
-          englishLetter: `${name}\n227 Spring St, Apt 3B\nNewark, NJ 07103\n\nApril 15, 2026\n\nHospital Billing Department\nRiverside Memorial Hospital\n1450 North Bergen Avenue\nNewark, NJ 07107\n\nRe: Formal Billing Dispute & Request for Financial Assistance\nAccount Number: RM-8847291 | Patient ID: MR-552103\nService Date: March 22, 2026 | Amount in Dispute: $4,237.25\n\nDear Hospital Billing Department,\n\nI am writing to formally dispute the charges on my Patient Statement dated April 15, 2026, for services rendered on March 22, 2026, at Riverside Memorial Hospital. My total balance is $4,237.25, with no insurance payments or adjustments applied.\n\nI am requesting:\n\n1. A fully itemized bill per 45 CFR § 164.524, including all CPT/revenue codes, medication names, supply descriptions, and unit pricing.\n2. Written justification and clinical documentation for the Recovery Room charge (REC-RM, $1,800.00), which appears to be in error for a 3.5-hour emergency visit.\n3. A copy of your Financial Assistance Policy per IRS § 501(r), as Riverside Memorial operates under Tax ID 22-1234567.\n4. Clarification of why insurance was not billed, and submission to the appropriate insurer before patient responsibility is determined.\n5. A hold on all collection activity while this dispute is under review.\n6. A written response within thirty (30) days of receipt.\n\nShould I not receive a timely response, I reserve the right to file complaints with the NJ Department of Health, CMS, and the CFPB.\n\nSincerely,\n\n___________________________________\n${name}\nAccount Number: RM-8847291\nDate: ___________________`,
-          translatedLetter: `${name}\n227 Spring St, Apt 3B\nNewark, NJ 07103\n\n15 de abril de 2026\n\nDepartamento de Facturación del Hospital\nRiverside Memorial Hospital\n1450 North Bergen Avenue\nNewark, NJ 07107\n\nAsunto: Disputa Formal de Facturación y Solicitud de Asistencia Financiera\nNúmero de Cuenta: RM-8847291 | ID de Paciente: MR-552103\nFecha de Servicio: 22 de marzo de 2026 | Monto en Disputa: $4,237.25\n\nEstimado Departamento de Facturación:\n\nPor medio de la presente, disputo formalmente los cargos de mi estado de cuenta del 15 de abril de 2026 por servicios del 22 de marzo de 2026 en Riverside Memorial Hospital. Mi saldo total es de $4,237.25, sin pagos ni ajustes de seguro aplicados.\n\nSolicito:\n\n1. Una factura completamente detallada conforme a 45 CFR § 164.524, con todos los códigos CPT, nombres de medicamentos, descripciones de suministros y precios unitarios.\n2. Justificación escrita y documentación clínica para el cargo de Sala de Recuperación (REC-RM, $1,800.00), que parece incorrecto para una visita de emergencia de 3.5 horas.\n3. Copia de la Política de Asistencia Financiera conforme a IRS § 501(r), ya que el hospital opera bajo el Tax ID 22-1234567.\n4. Aclaración de por qué el seguro no fue facturado, y envío al asegurador correspondiente antes de determinar la responsabilidad del paciente.\n5. Suspensión de toda actividad de cobro mientras esta disputa esté pendiente.\n6. Respuesta escrita dentro de treinta (30) días de recibida esta carta.\n\nDe no recibir respuesta oportuna, me reservo el derecho de presentar quejas ante el Departamento de Salud de NJ, CMS y la CFPB.\n\nAtentamente,\n\n___________________________________\n${name}\nNúmero de Cuenta: RM-8847291\nFecha: ___________________`,
+          englishLetter: DEMO_LETTER.englishLetter.replace(/Maria L\. Rodriguez/g, name),
+          translatedLetter: DEMO_LETTER.translatedLetter.replace(/मारिया एल\. रोड्रिग्ज़/g, name),
         });
         return;
       }
 
-      const response = await fetch("/api/generate-letter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileText: analysisResult.fileText,
-          goal: selectedGoal,
-          language,
-          patientName: patientName.trim() || undefined,
-        }),
-      });
-
-      const payload = (await response.json()) as Partial<LetterResult> & { error?: string };
-      if (
-        !response.ok ||
-        typeof payload.englishLetter !== "string" ||
-        typeof payload.translatedLetter !== "string"
-      ) {
-        throw new Error(payload.error || "Failed to generate letter. Please try again.");
-      }
-
-      setLetterResult({
-        englishLetter: payload.englishLetter,
-        translatedLetter: payload.translatedLetter,
-      });
+      // Not demo mode — block with funny error
+      setLetterError(randomBlockedQuote());
     } catch (error) {
       setLetterError(
         error instanceof Error ? error.message : "Failed to generate letter. Please try again."
